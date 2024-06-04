@@ -21,6 +21,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Conn
 builder.Services.AddScoped<IDriverService, DriverService>();
 builder.Services.AddScoped<IDriverRepository, DriverRepository>();
 
+builder.Services.AddScoped<IRegionService, RegionService>();
+builder.Services.AddScoped<IRegionRepository, RegionRepository>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

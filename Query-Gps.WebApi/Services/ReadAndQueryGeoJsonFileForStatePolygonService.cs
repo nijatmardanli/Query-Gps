@@ -3,9 +3,12 @@ using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using Query_Gps.WebApi.Domain;
+using Query_Gps.WebApi.Repositories.Abstract;
 using System.Text;
 
-namespace TestQueryFramework
+namespace Query_Gps.WebApi.Services
 {
     public class mywktclas
     {
@@ -26,8 +29,14 @@ namespace TestQueryFramework
         private Geometry? reqgeo;
         private Random? r;
         private GeometryFactory? geometryFactory;
+        private readonly IRegionRepository _regionRepository;
 
-        public void ReadGeoJsonDataWithDistrict()
+        public ReadAndQueryGeoJsonFileForStatePolygonService(IRegionRepository regionRepository)
+        {
+            _regionRepository = regionRepository;
+        }
+
+        public async Task ReadGeoJsonDataWithDistrictAsync()
         {
             StringBuilder sb = new();
             geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
@@ -66,11 +75,44 @@ namespace TestQueryFramework
                 }
 
                 string key = district + "@" + state;
+                var value = pk.Coordinates;
+
+                dynamic regions = pk.GeometryType == "Polygon"
+                    ? new List<double[][]>
+                {
+                    value.Select(x=> new double[] {x.X, x.Y}).ToArray()
+                }
+                    : new List<double[][][]>() { new double[][][] { value.Select(x => new double[] { x.X, x.Y }).ToArray() } };
+
+                var regionValue = new
+                {
+                    Type = pk.GeometryType,
+                    Coordinates = regions
+                };
+
+                Region region = new()
+                {
+                    Key = key,
+                    Value = JsonConvert.SerializeObject(regionValue, new JsonSerializerSettings()
+                    {
+                        ContractResolver = new CamelCasePropertyNamesContractResolver()
+                    })
+                };
+
+                try
+                {
+                    await _regionRepository.UpsertAsync(region);
+                }
+                catch (Exception ex)
+                {
+                    throw;
+                }
+
                 sb.AppendLine(key);
                 mk[key] = pk;
                 Console.WriteLine(key);
             }
-            
+
             File.WriteAllText(@"E:\Downloads\mygeodata_merged\allindiadistrict.txt", sb.ToString());
         }
 

@@ -1,9 +1,7 @@
-﻿using GeoJSON.Net.Geometry;
-using Query_Gps.WebApi.Domain;
+﻿using Query_Gps.WebApi.Domain;
 using Query_Gps.WebApi.Repositories.Abstract;
 using StackExchange.Redis;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Query_Gps.WebApi.Repositories
 {
@@ -27,7 +25,6 @@ namespace Query_Gps.WebApi.Repositories
                 return null!;
 
             Driver driver = JsonSerializer.Deserialize<Driver>(result[1][1].ToString())!;
-
 
             return driver;
         }
