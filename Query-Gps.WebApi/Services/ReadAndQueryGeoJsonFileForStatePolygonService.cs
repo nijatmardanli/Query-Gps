@@ -3,6 +3,7 @@ using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Query_Gps.WebApi.Domain;
 using Query_Gps.WebApi.Repositories.Abstract;
@@ -20,15 +21,15 @@ namespace Query_Gps.WebApi.Services
 
     public class ReadAndQueryGeoJsonFileForStatePolygonService
     {
-        private Dictionary<string, Geometry> mk = default!;
+        private Dictionary<string, Geometry> _mk = default!;
 
-        private double minx;
-        private double maxx;
-        private double miny;
-        private double maxy;
-        private Geometry? reqgeo;
-        private Random? r;
-        private GeometryFactory? geometryFactory;
+        private double _minX;
+        private double _maxX;
+        private double _minY;
+        private double _maxY;
+        private Geometry? _geometry;
+        private Random? _random;
+        private GeometryFactory? _geometryFactory;
         private readonly IRegionRepository _regionRepository;
 
         public ReadAndQueryGeoJsonFileForStatePolygonService(IRegionRepository regionRepository)
@@ -39,28 +40,32 @@ namespace Query_Gps.WebApi.Services
         public async Task ReadGeoJsonDataWithDistrictAsync()
         {
             StringBuilder sb = new();
-            geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+            _geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+
             Dictionary<string, string> geometrystringdict = new();
             GeometryFactory geometryFactory1 = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
             // get the JSON file content
             string filename = @"E:\Downloads\mygeodata_merged\mygeodata_merged.json";
             //filename = @"D:\India_MapData\FinalMap_used\TestingDistrict\mygeodata_merged.json";
-            var josnData = File.ReadAllText(filename);
+            var jsonString = File.ReadAllText(filename);
+            var jsonData = JObject.Parse(jsonString)!;
+            var features = jsonData["features"]!;
 
             // create NetTopology JSON reader
             var reader = new GeoJsonReader();
 
             // pass geoJson's FeatureCollection to read all the features
-            var featureCollection = reader.Read<FeatureCollection>(josnData);
+            var featureCollection = reader.Read<FeatureCollection>(jsonString);
 
             // if feature collection is null then return
             if (featureCollection == null)
             {
                 return;
             }
+
             var coll = featureCollection.GetEnumerator();
             List<mywktclas> mywktlist = new();
-            mk = new Dictionary<string, Geometry>();
+            _mk = new Dictionary<string, Geometry>();
             while (coll.MoveNext())
             {
                 var item = coll.Current;
@@ -76,18 +81,20 @@ namespace Query_Gps.WebApi.Services
 
                 string key = district + "@" + state;
                 var value = pk.Coordinates;
+                var feature = features.FirstOrDefault(x => x["properties"]!["st_nm"]!.ToString() == state 
+                                && x["properties"]!["district"]!.ToString() == district);
 
-                dynamic regions = pk.GeometryType == "Polygon"
-                    ? new List<double[][]>
-                {
-                    value.Select(x=> new double[] {x.X, x.Y}).ToArray()
-                }
-                    : new List<double[][][]>() { new double[][][] { value.Select(x => new double[] { x.X, x.Y }).ToArray() } };
+                var coordinates = feature!["geometry"]!["coordinates"]!.ToArray();
+
 
                 var regionValue = new
                 {
-                    Type = pk.GeometryType,
-                    Coordinates = regions
+                    Type = "Feature",
+                    Geometry = new
+                    {
+                        Type = pk.GeometryType,
+                        Coordinates = coordinates
+                    }
                 };
 
                 Region region = new()
@@ -109,7 +116,7 @@ namespace Query_Gps.WebApi.Services
                 }
 
                 sb.AppendLine(key);
-                mk[key] = pk;
+                _mk[key] = pk;
                 Console.WriteLine(key);
             }
 
@@ -118,7 +125,7 @@ namespace Query_Gps.WebApi.Services
 
         public void ReadGeoJsonData(string filename)
         {
-            geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+            _geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
             // get the JSON file content
             // Log.Information("file name " + filename);
             var josnData = File.ReadAllText(filename);
@@ -137,7 +144,7 @@ namespace Query_Gps.WebApi.Services
             //  Log.Information("found features ");
 
             var coll = featureCollection.GetEnumerator();
-            mk = new Dictionary<string, Geometry>();
+            _mk = new Dictionary<string, Geometry>();
             while (coll.MoveNext())
             {
                 var item = coll.Current;
@@ -171,7 +178,7 @@ namespace Query_Gps.WebApi.Services
                     }
                 }
 
-                mk[key] = pk;
+                _mk[key] = pk;
             }
 
             // Log.Information("number of entry " + mk.Count);
@@ -179,12 +186,12 @@ namespace Query_Gps.WebApi.Services
 
         public List<string> getStateList(double latitude, double longitude)
         {
-            Point point = geometryFactory!.CreatePoint(new Coordinate(longitude, latitude));
+            Point point = _geometryFactory!.CreatePoint(new Coordinate(longitude, latitude));
             List<string> result = new();
 
-            foreach (string key in mk.Keys)
+            foreach (string key in _mk.Keys)
             {
-                Geometry shape = mk[key];
+                Geometry shape = _mk[key];
 
                 if (shape.Contains(point))
                 {
@@ -192,7 +199,7 @@ namespace Query_Gps.WebApi.Services
                     result.Add(key);
                 }
             }
-            foreach (string key in mk.Keys)
+            foreach (string key in _mk.Keys)
             {
                 Console.WriteLine(key);
             }
@@ -201,14 +208,14 @@ namespace Query_Gps.WebApi.Services
 
         public void setPointBound()
         {
-            r = new Random();
-            reqgeo = mk["Haryana"];
+            _random = new Random();
+            _geometry = _mk["Haryana"];
 
-            var gh = reqgeo.EnvelopeInternal;
-            minx = gh.MinX;
-            maxx = gh.MaxX;
-            miny = gh.MinY;
-            maxy = gh.MaxY;
+            var gh = _geometry.EnvelopeInternal;
+            _minX = gh.MinX;
+            _maxX = gh.MaxX;
+            _minY = gh.MinY;
+            _maxY = gh.MaxY;
         }
 
         public List<double> getRandomPoint()
@@ -218,14 +225,14 @@ namespace Query_Gps.WebApi.Services
             int mcount = 0;
             while (notfoundinside)
             {
-                double newx = r!.NextDouble() * (maxx - minx) + minx;
-                double newy = r!.NextDouble() * (maxy - miny) + miny;
+                double newx = _random!.NextDouble() * (_maxX - _minX) + _minX;
+                double newy = _random!.NextDouble() * (_maxY - _minY) + _minY;
 
-                Point point = geometryFactory!.CreatePoint(new Coordinate(newx, newy));
+                Point point = _geometryFactory!.CreatePoint(new Coordinate(newx, newy));
                 List<string> result = new List<string>();
                 mcount = mcount + 1;
 
-                if (reqgeo!.Contains(point))
+                if (_geometry!.Contains(point))
                 {
                     ld.Add(newx);
                     ld.Add(newy);
