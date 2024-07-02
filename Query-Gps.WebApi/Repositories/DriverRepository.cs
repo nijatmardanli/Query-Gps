@@ -40,7 +40,8 @@ namespace Query_Gps.WebApi.Repositories
                                                              condition,
                                                              "Point",
                                                              coordinates.Latitude,
-                                                             coordinates.Longitude);
+                                                             coordinates.Longitude,
+                                                             radius);
 
 
             List<Driver> drivers = new(capacity: result[1].Length);
