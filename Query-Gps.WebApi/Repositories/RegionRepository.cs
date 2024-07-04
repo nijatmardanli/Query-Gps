@@ -17,6 +17,31 @@ namespace Query_Gps.WebApi.Repositories
 
         private IDatabase Database => _connectionMultiplexer.GetDatabase();
 
+        public async Task<List<string>> FindAsync(Coordinates coordinates, double radius)
+        {
+            var data = await Database.ExecuteAsync("NEARBY",
+                                                   _collection,
+                                                   "Ids",
+                                                   "POINT",
+                                                   coordinates.Latitude,
+                                                   coordinates.Longitude,
+                                                   radius);
+
+
+            List<string> result = new();
+
+            if (data.Length < 2 || data[1].Length == 0)
+                return result;
+
+            for (int i = 0; i < data[1].Length; i++)
+            {
+                RedisResult item = data[1][i];
+                result.Add(item.ToString());
+            }
+
+            return result;
+        }
+
         public async Task UpsertAsync(Region entity)
         {
             _ = await Database.ExecuteAsync("SET",
